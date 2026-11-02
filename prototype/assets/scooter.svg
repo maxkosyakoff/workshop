@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 420">
+<defs><pattern id="g" width="30" height="30" patternUnits="userSpaceOnUse"><path d="M30 0H0V30" fill="none" stroke="#c8cebf" stroke-width=".7"/></pattern></defs>
+<rect width="900" height="420" fill="#e8ebdf"/><rect width="900" height="420" fill="url(#g)"/>
+<path d="M60 365H840" stroke="#bcc4b9" stroke-width="2"/>
+<g stroke="#253334" stroke-width="8"><circle cx="219" cy="309" r="66" fill="#354342"/><circle cx="219" cy="309" r="42" fill="#bac4b9"/><circle cx="699" cy="309" r="66" fill="#354342"/><circle cx="699" cy="309" r="42" fill="#bac4b9"/></g>
+<g stroke="#647973" stroke-width="5" fill="none"><circle cx="219" cy="309" r="28"/><circle cx="699" cy="309" r="28"/><path d="m199 289 40 40m-40 0 40-40m480 0 40 40m-40 0 40-40"/></g>
+<path d="m209 303 105-53h250l80-170 29 10-61 181q-7 22-38 22H312l-30 32-63-4" fill="#769b8d" stroke="#253334" stroke-width="8" stroke-linejoin="round"/>
+<path d="M321 254h227" stroke="#e2e3cf" stroke-width="9"/>
+<path d="m646 90-6-39 19-8 28 224 15 40" fill="none" stroke="#253334" stroke-width="15" stroke-linejoin="round"/>
+<path d="m614 47 89-10" stroke="#253334" stroke-width="12" stroke-linecap="round"/><path d="m610 47 26-3m48-6 25-2" stroke="#d97d45" stroke-width="15" stroke-linecap="round"/>
+<path d="m264 275 35-60" stroke="#243334" stroke-width="22"/><path d="m269 266 16 5-10-16 17 4-10-16 17 4-10-15 14 2" fill="none" stroke="#dc8a45" stroke-width="5"/>
+<path d="M162 251q56-40 112 2m370 0q54-39 108 2" fill="none" stroke="#253334" stroke-width="10"/>
+<rect x="362" y="270" width="108" height="19" rx="4" fill="#d7dfcf" stroke="#253334" stroke-width="3"/><path d="M385 277h17m9 0h17m9 0h17" stroke="#78968c" stroke-width="3"/>
+<circle cx="219" cy="309" r="8" fill="#e9e8d6"/><circle cx="699" cy="309" r="8" fill="#e9e8d6"/>
+<path d="m508 294-14 49" stroke="#253334" stroke-width="5"/><rect x="655" y="103" width="12" height="24" rx="4" fill="#e7b461"/>
+<g font-family="monospace" font-size="10" fill="#61716a"><text x="65" y="56">ES / 01</text><text x="65" y="73">ГОРОДСКАЯ МОДЕЛЬ</text><text x="735" y="383">МАСТЕРСКАЯ 01</text></g>
+</svg>
