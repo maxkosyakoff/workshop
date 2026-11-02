@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createState,act,skill,quality,targets,SHIFT} from '../game.js';
+import {createState,act,skill,quality,targets,compatible,hydrateState,faultOfferId,PARTS,SHIFT} from '../game.js';
+import {VEHICLES,FAULTS,ELECTRIC_NODES} from '../content.js';
 
 function wheelReady() {
   let s=createState(); s=act(s,{type:'ACCEPT',id:s.offers[0].id});
@@ -128,4 +129,66 @@ test('a visitor with an accepted order cannot be declined as a new offer',()=>{
   s=act(s,{type:'ACCEPT',id});
   assert.throws(()=>act(s,{type:'DECLINE',id}));
   assert.equal(s.jobs[0].status,'active'); assert.equal(s.rep,50);
+});
+
+test('all sixty repair scenarios can be completed with compatible parts and reused interactions',()=>{
+  let count=0;
+  for(const [vehicleId,faults] of Object.entries(FAULTS))for(const fault of faults){
+    let s=createState();s.xp=42;s.torque=true;
+    s.inventory=Object.fromEntries(Object.keys(PARTS).map(id=>[id,2]));
+    s=act(s,{type:'SET_VEHICLE',vehicleId});s=act(s,{type:'REQUEST_FAULT',faultId:fault.id});
+    const id=faultOfferId(s,fault);s=act(s,{type:'ACCEPT',id});
+    s=act(s,{type:'DIAG',node:fault.node,tool:ELECTRIC_NODES.includes(fault.node)?'meter':'visual'});
+    for(let i=0;i<3;i++)for(let k=0;k<3;k++)s=act(s,{type:'BOLT',index:i});
+    assert.ok(compatible(s.jobs[0],fault.parts[0]),fault.id);
+    s=act(s,{type:'INSTALL',part:fault.parts[0]});s=act(s,{type:'FIT'});
+    if(s.jobs[0].stage==='wiring'){
+      for(const port of ['A','B','C'])s=act(s,{type:'WIRE',left:port,right:port});
+      s=act(s,{type:'COMMIT_WIRE'});
+    }else if(s.jobs[0].stage==='adjust'){
+      const t=targets(s.jobs[0]),a=(t.a-.24*(t.b-50)+2.16)/1.0432,b=t.b+.18*(a-50);
+      s=act(s,{type:'ADJUST_VALUE',a,b});s=act(s,{type:'COMMIT_ADJUST'});
+    }
+    const money=s.money,payment=s.jobs[0].payment;
+    s=act(s,{type:'DELIVER'});
+    assert.equal(s.completed,1,fault.id);assert.equal(s.money,money+payment,fault.id);
+    assert.equal(s.jobs[0].vehicleId,vehicleId);assert.equal(s.jobs[0].finalQuality,92);
+    count++;
+  }
+  assert.equal(count,60);assert.equal(Object.keys(VEHICLES).length,6);
+});
+
+test('changing direction preserves active orders and never recreates processed offers',()=>{
+  let s=act(createState(),{type:'SET_VEHICLE',vehicleId:'BI'});
+  const fault=FAULTS.BI[0];s=act(s,{type:'REQUEST_FAULT',faultId:fault.id});const id=faultOfferId(s,fault);
+  s=act(s,{type:'ACCEPT',id});s=act(s,{type:'DIAG',node:'wheel',tool:'visual'});
+  s=act(s,{type:'SET_VEHICLE',vehicleId:'EM'});s=act(s,{type:'SET_VEHICLE',vehicleId:'BI'});
+  assert.equal(s.jobs[0].stage,'bolts');assert.ok(!s.offers.some(o=>o.id===id));
+  assert.throws(()=>act(s,{type:'REQUEST_FAULT',faultId:fault.id}));
+  const declined=s.offers[0].id;s=act(s,{type:'DECLINE',id:declined});
+  s=act(s,{type:'SET_VEHICLE',vehicleId:'EM'});s=act(s,{type:'SET_VEHICLE',vehicleId:'BI'});
+  assert.ok(!s.offers.some(o=>o.id===declined));
+});
+
+test('a bicycle has no electric traction nodes and model-specific replacement is enforced',()=>{
+  let s=act(createState(),{type:'SET_VEHICLE',vehicleId:'BI'});
+  s=act(s,{type:'ACCEPT',id:s.offers[0].id});
+  assert.throws(()=>act(s,{type:'DIAG',node:'battery',tool:'meter'}));
+  s=act(s,{type:'DIAG',node:'wheel',tool:'visual'});
+  for(let i=0;i<3;i++)for(let k=0;k<3;k++)s=act(s,{type:'BOLT',index:i});
+  assert.throws(()=>act(s,{type:'INSTALL',part:'tire_road'}));
+  assert.equal(s.inventory.tire_road,1);assert.equal(s.jobs[0].part,null);
+});
+
+test('spoke failure requires a wheel assembly rather than only a tire',()=>{
+  let s=act(createState(),{type:'SET_VEHICLE',vehicleId:'BI'});const f=FAULTS.BI[4];
+  s=act(s,{type:'REQUEST_FAULT',faultId:f.id});s=act(s,{type:'ACCEPT',id:faultOfferId(s,f)});
+  assert.equal(compatible(s.jobs[0],'bike_tire'),false);assert.equal(compatible(s.jobs[0],'bike_wheel'),true);
+});
+
+test('legacy saves preserve balances and receive new stock with zero quantities',()=>{
+  const old=createState();delete old.vehicleId;delete old.declinedOffers;delete old.inventory.bike_battery;
+  const s=hydrateState(old);assert.equal(s.vehicleId,'ES');assert.equal(s.money,old.money);assert.equal(s.inventory.bike_battery,0);
+  let next=act(s,{type:'BUY_PART',part:'bike_battery'});next=act(next,{type:'END_DAY'});
+  assert.equal(next.inventory.bike_battery,1);assert.ok(Number.isFinite(next.money));
 });
