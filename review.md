@@ -8,7 +8,7 @@
 
 Ниже сохранены исходные замечания review. Актуальный объём указан в [mvp-concept.md](mvp-concept.md). Представление и граница проверки уточнены; формулы качества, числовой баланс и интерес взаимодействий требуют проверки прототипом.
 
-Объект: [product.md](product.md), [skills.md](skills.md), [vehicles.md](vehicles.md), [repairs.md](repairs.md), [upgrades.md](upgrades.md), [equipment.md](equipment.md), [mechanics-backlog.md](mechanics-backlog.md).
+Объект: [product.md](product.md), [skills.md](skills.md), [vehicles.md](vehicles.md), [repairs.md](repairs.md), [upgrades.md](upgrades.md), [equipment.md](equipment.md), [backlog.md](backlog.md).
 
 ## Вывод
 
@@ -54,7 +54,7 @@
 
 ### REV-04. Диагностика обязательна, но её игровое содержание неизвестно
 
-**Основание:** [product.md](product.md), JOB-03; [mechanics-backlog.md](mechanics-backlog.md), разделы 1 и 6.
+**Основание:** [product.md](product.md), JOB-03; [backlog.md](backlog.md), разделы 1 и 6.
 
 Сложная система описания симптомов отложена, но замены ей пока нет. Автоматическое раскрытие поломки может сделать этап формальным, а полноценная симуляция неисправностей заметно расширит производство.
 
