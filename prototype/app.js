@@ -1,4 +1,5 @@
 import {PARTS,NODES,STAGES,SHIFT,RENT,createState,act,skill,clock,quality,effective,targets,suitable,activeJobs,selectedJob} from './game.js';
+import {visitorLook,offerDialogue,resultDialogue,personArt} from './visitors.js';
 
 const SAVE='courier-workshop-pc-v1', CHECKPOINT=SAVE+'-morning';
 const app=document.querySelector('#app'), dialog=document.querySelector('#dialog');
@@ -9,7 +10,9 @@ const art=type=>`assets/${type === 'wiring' ? 'connector' : type}.svg`;
 const money=n=>`${n.toLocaleString('ru-RU')} кр.`;
 let state;
 try { const saved=JSON.parse(localStorage.getItem(SAVE)); state=saved?.version===1&&Array.isArray(saved.jobs)&&saved.inventory?saved:createState(); } catch { state=createState(); }
-let ui={view:'work',node:'wheel',tool:'visual',filter:'all',wireLeft:null};
+let ui={view:'shop',node:'wheel',tool:'visual',filter:'all',wireLeft:null,visit:null,waiting:[]};
+let visitTimer;
+const reduceMotion=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 let toastTimer;
 function toast(text){ const el=document.querySelector('#toast'); el.textContent=text; el.classList.add('show'); clearTimeout(toastTimer); toastTimer=setTimeout(()=>el.classList.remove('show'),4300); }
 function persist(){try{localStorage.setItem(SAVE,JSON.stringify(state));}catch{toast('Сохранение недоступно. Оставьте вкладку открытой, чтобы продолжить эту сессию.');}}
@@ -25,10 +28,61 @@ function jobTag(j){return j.stage==='part'&&!Object.entries(PARTS).some(([id,p])
 function button(label,action,cls='',attrs=''){return `<button class="${cls}" data-action="${action}" ${attrs}>${label}</button>`;}
 function progressPills(j){const steps=['diagnosis','bolts','part','fit','finish','ready']; const idx=j.stage==='wiring'||j.stage==='adjust'?4:steps.indexOf(j.stage); return `<div class="step-pills">${steps.map((_,i)=>`<span class="step-dot ${i===idx?'current':i<idx?'done':''}">${i<idx?'✓':i+1}</span>`).join('')}</div>`;}
 
+function beginVisit(mode,id,arrive=true){
+  clearTimeout(visitTimer);
+  const person=mode==='story'?{client:'Ника'}:mode==='offer'?state.offers.find(j=>j.id===id):state.jobs.find(j=>j.id===id);
+  if(!person)return;
+  ui.view='shop';ui.visit={mode,person,line:0,phase:arrive&&!reduceMotion?'arriving':'talking'};render();
+  if(ui.visit.phase==='arriving')visitTimer=setTimeout(()=>{if(!ui.visit)return;ui.visit.phase='talking';if(ui.view==='shop')render();},1000);
+}
+function nextVisitor(){
+  const offer=state.offers.find(j=>!ui.waiting.includes(j.id));
+  if(offer)beginVisit('offer',offer.id);
+  else {ui.visit=null;if(ui.view==='shop')render();}
+}
+function leaveCounter(text,toWork=false){
+  clearTimeout(visitTimer);if(!ui.visit)return;
+  ui.visit.phase='leaving';ui.visit.farewell=text;ui.visit.toWork=toWork;render();
+  visitTimer=setTimeout(finishDeparture,reduceMotion?0:1000);
+}
+function finishDeparture(){
+  clearTimeout(visitTimer);const toWork=ui.visit?.toWork;ui.visit=null;
+  if(ui.view!=='shop')return;
+  if(toWork){ui.view='work';render();}else nextVisitor();
+}
+function shop(){
+  const visit=ui.visit,person=visit?.person,offer=visit?.mode==='offer'?state.offers.find(j=>j.id===person.id):null;
+  const talking=visit?.phase==='talking';let speech='',actions='',summary='';
+  if(visit?.phase==='leaving')speech=visit.farewell;
+  else if(visit?.mode==='offer'&&offer){
+    const line=offerDialogue(offer)[visit.line];speech=line.text;
+    if(talking){
+      if(visit.line<2)actions=button(line.reply,'visit-next','primary');
+      else actions=button(skill(state)<offer.required?'Нужна механика II':activeJobs(state).length>=2?'Заняты оба места':'Принять заказ','accept','primary',`data-id="${offer.id}" ${skill(state)<offer.required||activeJobs(state).length>=2?'disabled':''}`)+button('Не смогу помочь','decline-visitor','ghost');
+      actions+=button('Попросить подождать','hold-visitor','ghost');
+    }
+    summary=`<div class="counter-contract"><div><span class="eyebrow">${offer.kind==='upgrade'?'АПГРЕЙД':'РЕМОНТ'} / ${NODES[offer.type]}</span><h3>${esc(offer.title)}</h3></div><div><span>Оплата</span><strong>${money(offer.payment)}</strong></div><div><span>Срок</span><strong>До вечера дня ${offer.dueDay}</strong></div><div><span>Качество</span><strong>Не ниже ${offer.minQuality}</strong></div></div><p class="counter-fineprint">При просрочке, низком качестве или неподходящем апгрейде клиент откажется платить. Отказ до принятия не снижает репутацию.</p>`;
+  }else if(visit?.mode==='result'){
+    speech=resultDialogue(person);
+    if(talking)actions=button(state.story.awaitingChoice?'Выслушать Нику':'До встречи!','visitor-result-next','primary');
+    summary=`<div class="counter-outcome ${person.passed?'':'bad'}"><strong>${person.passed?'Работа принята · +'+money(person.payment):'Отказ в оплате · 0 кр.'}</strong><span>${person.passed?`Качество ${person.finalQuality}/100 · +14 опыта · +4 репутации`:esc(person.reasons.join('; '))+' · −8 репутации'}</span></div>`;
+  }else if(visit?.mode==='story'){
+    speech='А какую покрышку взять потом? Можно срезать через разбитый двор или ехать дальше, зато по ровному асфальту. Что посоветуете?';
+    if(talking)actions=button('Лучше сцепление на плохой дороге','story-choice','primary','data-choice="grip"')+button('Больше дальности на городских дорогах','story-choice','ghost','data-choice="range"');
+    summary='<p class="counter-fineprint">Ваш совет изменит следующий заказ Ники и подходящий апгрейд.</p>';
+  }
+  const phase=visit?.phase;
+  return `<div class="main-head"><div><div class="eyebrow">ГОРОДСКАЯ МАСТЕРСКАЯ / ПРИЁМ И ВЫДАЧА</div><h1>Сначала — поговорим.</h1></div><span class="tag green">Дверь открыта</span></div><section class="shop-room" aria-label="Мастерская с прилавком"><img class="room-backdrop" src="assets/workshop.svg" alt="Мастерская: инструменты на стене, рабочий стол и входная дверь"><div class="room-master">${personArt(visitorLook('Ника'),true)}</div><img class="room-counter" src="assets/counter.svg" alt="Прилавок приёма и выдачи заказов">${person?`<div class="room-visitor ${phase==='arriving'?'walk-in':phase==='leaving'?'walk-out':''}" aria-label="Посетитель ${esc(person.client)}">${personArt(visitorLook(person.client))}</div>`:''}${person&&phase!=='arriving'?`<div class="speech-bubble ${phase==='leaving'?'farewell-bubble':''}" role="status"><div class="speech-name">${esc(person.client)} <span>Курьер</span></div><p>${esc(speech)}</p><span class="speech-progress">${visit.mode==='offer'&&phase==='talking'?`Разговор ${visit.line+1} / 3`:'У прилавка'}</span></div>`:''}<div class="room-presence" role="status">${phase==='arriving'?`${esc(person.client)} заходит в мастерскую…`:phase==='leaving'?'Колокольчик у двери звенит на прощание.':person?`${esc(person.client)} · у прилавка`:'Мастерская открыта · ждём посетителей'}</div></section><div class="counter-dialogue"><div class="counter-reply-label">${phase==='arriving'?'Посетитель подходит к прилавку':phase==='leaving'?'До следующей встречи':person?'Ответ мастера':'Заказы и посетители'}</div><div class="counter-actions">${phase==='arriving'?button('Перейти к разговору','skip-arrival','ghost small'):phase==='leaving'?button('Продолжить','finish-departure','ghost small'):person?actions:state.offers.length?button('Позвать следующего посетителя','call-next','primary'):button('Открыть снабжение','nav','primary','data-view="supply"')}${!person&&activeJobs(state).length?button('Вернуться к ремонту','nav','ghost','data-view="work"'):''}</div>${summary}${!person?'<p class="counter-fineprint">Посетителей можно позвать из очереди слева. Разговоры не расходуют рабочее время.</p>':''}</div>`;
+}
+
 function header(){return `<header class="topbar"><div class="brand"><div class="brand-mark">${icon('wrench')}</div><div><div class="brand-title">Курьерская<span style="color:var(--orange)">.</span></div><div class="eyebrow">Городская мастерская · № 01</div></div></div><div class="stats"><div class="stat"><span>КРЕДИТЫ</span><strong class="money">${money(state.money)}</strong></div><div class="stat rep-stat"><span>РЕПУТАЦИЯ</span><strong>${state.rep}<small class="muted"> / 100</small></strong></div><div class="day-control"><div class="stat"><span>ДЕНЬ ${String(state.day).padStart(2,'0')}</span><strong>${clock(state.minutes)}</strong></div>${button(`${icon('clock')} &nbsp; Завершить день`,'end-day','primary')}</div>${button(icon('help'),'help','icon-button','aria-label="Как играть"')}</div></header>`;}
 function sidebar(){
   const jobs=activeJobs(state);
-  return `<aside class="sidebar"><nav class="nav" aria-label="Разделы мастерской">${[['work','wrench','Верстак'],['supply','box','Снабжение'],['equipment','gear','Оснащение'],['journal','book','Журнал']].map(([id,ic,name])=>button(`${icon(ic)} ${name}`,'nav',ui.view===id?'active':'',`data-view="${id}"`)).join('')}</nav><div><div class="section-label"><span>В РАБОТЕ</span><span>${jobs.length}/2</span></div>${jobs.length?jobs.map(j=>`<div class="order-card ${state.selected===j.id?'selected':''}"><div class="row between"><span class="client">${esc(j.client)}</span><span class="tiny mono ${state.day>j.dueDay?'danger':'muted'}">Д${j.dueDay}</span></div><div class="title">${esc(j.title)}</div><span class="tag ${j.stage==='ready'?'green':''}">${jobTag(j)}</span>${button('Открыть заказ','select','small full',`data-id="${j.id}"`)}</div>`).join(''):'<p class="tiny muted">Свободно два места.<br>Примите заказ у прилавка.</p>'}</div><div><div class="section-label"><span>У ПРИЛАВКА</span><span>${state.offers.length}</span></div>${state.offers.map(j=>`<div class="order-card"><div class="row between"><span class="client">${esc(j.client)} ${j.storyStep?'↗':''}</span><span class="tiny mono" style="color:var(--orange)">${j.payment} кр.</span></div><div class="title">${esc(j.title)}</div><div class="tiny muted">${j.kind==='upgrade'?'Апгрейд':'Ремонт'} · ${NODES[j.type]}</div>${button(skill(state)<j.required?'Нужна механика II':'Условия заказа','offer','small full',`data-id="${j.id}"`)}</div>`).join('')||'<p class="tiny muted">Все предложения разобраны.<br>Новые появятся завтра.</p>'}</div><div class="skillbox"><div class="row between"><strong style="font-size:12px">${levelLabel()}</strong><span class="tag">${skill(state)===2?'II':'I'}</span></div><div class="progress"><i style="width:${Math.min(100,state.xp/35*100)}%"></i></div><div class="tiny muted mono">${skill(state)===2?'Подвеска открыта':`${state.xp} / 35 опыта до уровня II`}</div><div class="tiny muted" style="margin-top:8px">Электротехника I · базовый допуск</div>${state.story.awaitingChoice?button('Ника ждёт вашего совета','story','small full','style="margin-top:12px"'):''}</div></aside>`;
+  const navItems=[['shop','orders','Прилавок'],['work','wrench','Верстак'],['supply','box','Снабжение'],['equipment','gear','Оснащение'],['journal','book','Журнал']];
+  return `<aside class="sidebar"><nav class="nav" aria-label="Разделы мастерской">${navItems.map(([id,ic,name])=>button(`${icon(ic)} ${name}`,'nav',ui.view===id?'active':'',`data-view="${id}"`)).join('')}</nav>
+  <div><div class="section-label"><span>В РАБОТЕ</span><span>${jobs.length}/2</span></div>${jobs.length?jobs.map(j=>`<div class="order-card ${state.selected===j.id?'selected':''}"><div class="row between"><span class="client">${esc(j.client)}</span><span class="tiny mono ${state.day>j.dueDay?'danger':'muted'}">Д${j.dueDay}</span></div><div class="title">${esc(j.title)}</div><span class="tag ${j.stage==='ready'?'green':''}">${jobTag(j)}</span>${button('Открыть заказ','select','small full',`data-id="${j.id}"`)}</div>`).join(''):'<p class="tiny muted">Свободно два места.<br>Примите заказ у прилавка.</p>'}</div>
+  <div><div class="section-label"><span>ПОСЕТИТЕЛИ</span><span>${state.offers.length}</span></div>${state.offers.map(j=>`<div class="order-card ${ui.visit?.mode==='offer'&&ui.visit.person.id===j.id?'at-counter':''}"><div class="row between"><span class="client">${esc(j.client)} ${j.storyStep?'↗':''}</span><span class="tiny mono" style="color:var(--orange)">${j.payment} кр.</span></div><div class="title">${esc(j.title)}</div><div class="tiny muted">${ui.waiting.includes(j.id)?'Ждёт вашего ответа':j.kind==='upgrade'?'Апгрейд':'Ремонт'} · ${NODES[j.type]}</div>${button(ui.visit?.mode==='offer'&&ui.visit.person.id===j.id?'Продолжить разговор':'Позвать к прилавку','offer','small full',`data-id="${j.id}"`)}</div>`).join('')||'<p class="tiny muted">Все посетители обслужены.<br>Новые придут завтра.</p>'}</div>
+  <div class="skillbox"><div class="row between"><strong style="font-size:12px">${levelLabel()}</strong><span class="tag">${skill(state)===2?'II':'I'}</span></div><div class="progress"><i style="width:${Math.min(100,state.xp/35*100)}%"></i></div><div class="tiny muted mono">${skill(state)===2?'Подвеска открыта':`${state.xp} / 35 опыта до уровня II`}</div><div class="tiny muted" style="margin-top:8px">Электротехника I · базовый допуск</div>${state.story.awaitingChoice?button('Ника ждёт вашего совета','story','small full','style="margin-top:12px"'):''}</div></aside>`;
 }
 
 function clipboard(){
@@ -80,26 +134,17 @@ function supply(){
 }
 function equipment(){return `<div class="main-head"><div><div class="eyebrow">РУЧНЫЕ ИНСТРУМЕНТЫ</div><h1>Навык открывает возможности.</h1></div><span class="tag">Без автоматизации</span></div><div class="equipment">${[['wrench','Механический комплект','Корпуса, крепёж, колёса и базовая регулировка.','М I'],['bolt','Электромонтажный комплект','Подготовленные разъёмы и участки проводки.','Э I'],['eye','Мультиметр','Поиск неисправности электрических соединений.','Э I'],['gear','Подъёмная стойка','Удержание транспорта во время работы.','М I']].map(([ic,name,desc,level])=>`<article class="equipment-card"><div class="big-icon">${icon(ic)}</div><h3>${name}</h3><p>${desc}</p><span class="tag green">${level} · есть в мастерской</span></article>`).join('')}<article class="equipment-card" style="border-color:var(--orange)"><div class="big-icon">${icon('wrench')}</div><h3>Динамометрический ключ</h3><p>Открывает ручные работы с подвеской. Нужны механика II и сам инструмент.</p>${state.torque?'<span class="tag green">М II · инструмент получен</span>':button(skill(state)<2?'Откроется на механике II':'Получить · 120 кр.','buy-tool','primary small',skill(state)<2?'disabled':'')}</article></div><div class="note">За принятый клиентом заказ: +14 опыта. Механика II открывается на 35 опыте. Инструменты не выполняют работу за мастера.</div>`;}
 function journal(){return `<div class="main-head"><div><div class="eyebrow">ИСТОРИЯ МАСТЕРСКОЙ</div><h1>Что произошло за смену.</h1></div>${button(icon('reset'),'new-game','icon-button','aria-label="Новая попытка"')}</div><div class="journal">${state.log.map(x=>`<div class="journal-item"><time>ДЕНЬ ${x.day}<br>${x.time}</time><div>${esc(x.message)}</div></div>`).join('')}</div>`;}
-function render(){app.innerHTML=`<div class="app">${header()}<div class="layout">${sidebar()}<main class="main">${({work,supply,equipment,journal})[ui.view]()}</main>${clipboard()}</div><footer class="bottom"><span><i class="save-dot"></i>Сохранено в браузере · 2D / PC</span><span>До конца смены: ${Math.floor((SHIFT-state.minutes)/60)} ч ${(SHIFT-state.minutes)%60} мин · аренда в конце дня ${state.day+(3-state.day%3)%3}</span></footer></div>`;}
+function render(){app.innerHTML=`<div class="app">${header()}<div class="layout ${ui.view==='shop'?'shop-layout':''}">${sidebar()}<main class="main ${ui.view==='shop'?'shop-main':''}">${({shop,work,supply,equipment,journal})[ui.view]()}</main>${ui.view==='shop'?'':clipboard()}</div><footer class="bottom"><span><i class="save-dot"></i>Сохранено в браузере · 2D / PC</span><span>До конца смены: ${Math.floor((SHIFT-state.minutes)/60)} ч ${(SHIFT-state.minutes)%60} мин · аренда в конце дня ${state.day+(3-state.day%3)%3}</span></footer></div>`;}
 
 function closeModal(){dialog.close();}
 function showModal(type,id){
   let content='';
-  if(type==='offer') {
-    const j=state.offers.find(x=>x.id===id); if(!j)return;
-    content=`<div class="eyebrow">НОВЫЙ ЗАКАЗ / ${j.kind==='upgrade'?'АПГРЕЙД':'РЕМОНТ'}</div><h2>${esc(j.title)}</h2><p>«${esc(j.complaint)}»</p><div class="row between"><strong>${esc(j.client)}</strong><span class="tag">${NODES[j.type]}</span></div><div class="divider"></div><div class="spec row between"><span>Оплата</span><strong>${money(j.payment)}</strong></div><div class="row between" style="margin-top:8px"><span>Срок / качество</span><strong>День ${j.dueDay} / ≥ ${j.minQuality}</strong></div><p class="tiny">При просрочке, недостаточном качестве или неподходящем апгрейде клиент не заплатит. Отказ до принятия не вредит репутации.</p><div class="row">${button('Пока не брать','close','ghost')}${button(skill(state)<j.required?'Нужна механика II':activeJobs(state).length>=2?'Заняты оба места':'Принять заказ','accept','primary',`data-id="${j.id}" ${skill(state)<j.required||activeJobs(state).length>=2?'disabled':''}`)}</div>`;
-  }
   if(type==='endday') {
     const dueNow=activeJobs(state).filter(j=>j.dueDay<=state.day);
     content=`<div class="eyebrow">ЗАКРЫТИЕ МАСТЕРСКОЙ</div><h2>Завершить день ${state.day}?</h2><p>Незаконченные заказы сохранятся. Утром придут заказанные детали и новые клиенты.</p>${dueNow.length?`<div class="outcome-card bad">После перехода дня будут просрочены: ${dueNow.map(j=>esc(j.client)).join(', ')}.</div>`:''}${state.day%3===0?`<p>Аренда сегодня: <strong>${money(RENT)}</strong>. На счету ${money(state.money)}.</p>`:'<p class="tiny">Оставшееся рабочее время не переносится.</p>'}<div class="row">${button('Вернуться к работе','close','ghost')}${button('Да, завершить день','confirm-day','primary')}</div>`;
   }
   if(type==='cancel') { const j=selectedJob(state); if(!j)return; content=`<div class="eyebrow">ОТМЕНА ЗАКАЗА</div><h2>Вернуть транспорт ${esc(j.client)}?</h2><p>Оплаты не будет. Репутация снизится на 3.${j.part?' Установленная деталь вернётся на склад. Снятие займёт 15 минут.':''}</p><div class="row">${button('Продолжить ремонт','close','ghost')}${button('Отменить заказ','confirm-cancel','primary')}</div>`; }
-  if(type==='result') {
-    const j=state.jobs.find(x=>x.id===id); if(!j)return;
-    content=`<div class="eyebrow">ЗАКАЗ ЗАКРЫТ / ${esc(j.client.toUpperCase())}</div><h2>${j.passed?'Снова на маршруте.':'Клиент отказался платить.'}</h2><div class="result-number ${j.passed?'':'bad'}">${j.passed?`+${money(j.payment)}`:'0 кр.'}</div><p>${j.passed?'Работа принята. Качество '+j.finalQuality+'/100. +14 опыта, +4 репутации.':'Причина: '+esc(j.reasons.join('; '))+'. Репутация −8. Деталь возвращена клиенту вместе с транспортом.'}</p><div class="row">${button('Продолжить','after-result','primary')}</div>`;
-  }
-  if(type==='story') content=`<div class="eyebrow">НИКА / ПОСТОЯННЫЙ КЛИЕНТ</div><h2>«А какую покрышку взять потом?»</h2><p>На новом маршруте можно срезать через разбитый двор. Или ехать дальше, зато по ровному асфальту. Что посоветуете?</p><div class="stack">${button('Лучше сцепление на плохой дороге','story-choice','',`data-choice="grip"`)}${button('Больше дальности на городских дорогах','story-choice','',`data-choice="range"`)}</div><p class="tiny">Совет изменит следующий заказ Ники и подходящий апгрейд.</p>`;
-  if(type==='help') content=`<div class="eyebrow">КОРОТКО ОБ ИГРЕ</div><h2>Одна мастерская.<br>Четыре способа работы.</h2><p>1. Примите заказ у прилавка.<br>2. Найдите поломку осмотром или мультиметром.<br>3. Снимите крепления и выберите деталь.<br>4. Совместите модуль, соедините контакты или выполните регулировку.<br>5. Выдайте заказ до срока.</p><div class="outcome-card">Если нет детали, закажите её в снабжении и завершите день. Начальные детали уже на складе.</div><p>Время идёт только при действиях. Механика II открывается после 35 опыта. Каждые три дня нужно оплатить 120 кредитов аренды. Прогресс сохраняется автоматически.</p><div class="row">${button('Понятно, за работу','close','primary')}</div>`;
+  if(type==='help') content=`<div class="eyebrow">КОРОТКО ОБ ИГРЕ</div><h2>От прилавка — к верстаку.</h2><p>1. Дождитесь посетителя у прилавка. Реплики появляются в спич-баблах; ответы мастера — под сценой.<br>2. Обсудите условия и примите заказ, попросите подождать или откажитесь без потери репутации.<br>3. Найдите поломку осмотром или мультиметром.<br>4. Снимите крепления, выберите деталь, соедините контакты или выполните регулировку.<br>5. Выдайте заказ до срока — клиент вернётся к прилавку.</p><div class="outcome-card">Если нет детали, закажите её в снабжении и завершите день. Начальные детали уже на складе.</div><p>Разговоры и анимации бесплатны по времени. Механика II открывается после 35 опыта. Каждые три дня нужно оплатить 120 кредитов аренды. Ремонт и принятые заказы сохраняются автоматически.</p><div class="row">${button('Понятно, за работу','close','primary')}</div>`;
   if(type==='newgame') content=`<div class="eyebrow">НОВАЯ ПОПЫТКА</div><h2>Начать с первого дня?</h2><p>Текущий прогресс этой вкладки будет заменён новым сохранением.</p><div class="row">${button('Сохранить текущую игру','close','ghost')}${button('Начать заново','confirm-new','primary')}</div>`;
   if(type==='bankrupt') content=`<div class="eyebrow">ПОПЫТКА ЗАВЕРШЕНА</div><h2>Не хватило на аренду.</h2><p>Можно повторить этот день с утреннего сохранения или начать с первого дня. Полученные в неудачной попытке результаты не переносятся.</p><div class="stack">${button('Повторить день с утра','restore-day','primary')}${button('Новая попытка','confirm-new')}</div>`;
   dialog.innerHTML=content; if(!dialog.open)dialog.showModal();
@@ -108,10 +153,16 @@ function showModal(type,id){
 document.addEventListener('click',e=>{
   const el=e.target.closest('[data-action]'); if(!el||el.disabled)return;
   const a=el.dataset.action;
-  if(a==='nav'){ui.view=el.dataset.view; render();return;}
+  if(a==='nav'){ui.view=el.dataset.view;if(ui.view==='shop'&&!ui.visit){if(state.story.awaitingChoice)beginVisit('story');else nextVisitor();}else render();return;}
   if(a==='close'){closeModal();return;}
-  if(a==='offer'){showModal('offer',el.dataset.id);return;}
-  if(a==='accept'){if(dispatch({type:'ACCEPT',id:el.dataset.id})){ui.view='work';ui.node='wheel';ui.tool='visual';closeModal();render();}return;}
+  if(a==='offer'){if(ui.visit?.mode==='offer'&&ui.visit.person.id===el.dataset.id&&ui.visit.phase!=='leaving'){ui.view='shop';render();}else beginVisit('offer',el.dataset.id);return;}
+  if(a==='visit-next'){if(ui.visit?.mode==='offer'&&ui.visit.phase==='talking'){ui.visit.line=Math.min(2,ui.visit.line+1);render();}return;}
+  if(a==='skip-arrival'){clearTimeout(visitTimer);if(ui.visit){ui.visit.phase='talking';render();}return;}
+  if(a==='call-next'){ui.waiting=[];nextVisitor();return;}
+  if(a==='finish-departure'){finishDeparture();return;}
+  if(a==='hold-visitor'){if(ui.visit?.mode==='offer'){ui.waiting.push(ui.visit.person.id);leaveCounter('Хорошо, я подожду. Позовите, когда сможете заняться моим заказом.');}return;}
+  if(a==='decline-visitor'){if(ui.visit?.mode==='offer'&&ui.visit.phase==='talking'&&dispatch({type:'DECLINE',id:ui.visit.person.id}))leaveCounter('Понятно. Тогда поищу другую мастерскую. До свидания.');return;}
+  if(a==='accept'){if(ui.visit?.mode!=='offer'||ui.visit.phase!=='talking'||ui.visit.line!==2)return;if(dispatch({type:'ACCEPT',id:el.dataset.id})){ui.node='wheel';ui.tool='visual';closeModal();leaveCounter('Договорились! Оставляю самокат у вас. Вернусь за ним к сроку.',true);}return;}
   if(a==='select'){ui.view='work';ui.wireLeft=null;dispatch({type:'SELECT',jobId:el.dataset.id});return;}
   if(a==='node'){ui.node=el.dataset.node;render();return;}
   if(a==='diag-tool'){ui.tool=el.dataset.tool;render();return;}
@@ -125,21 +176,21 @@ document.addEventListener('click',e=>{
   if(a==='commit-adjust'){dispatch({type:'COMMIT_ADJUST'});return;}
   if(a==='rework'){ui.wireLeft=null;dispatch({type:'REWORK'});return;}
   if(a==='change-part'){dispatch({type:'CHANGE_PART'});return;}
-  if(a==='deliver'){const id=state.selected;if(dispatch({type:'DELIVER'}))showModal('result',id);return;}
-  if(a==='after-result'){closeModal();if(state.story.awaitingChoice)showModal('story');return;}
+  if(a==='deliver'){const id=state.selected;if(dispatch({type:'DELIVER'}))beginVisit('result',id);return;}
+  if(a==='visitor-result-next'){if(state.story.awaitingChoice)beginVisit('story',null,false);else leaveCounter('До встречи! Удачной смены.');return;}
   if(a==='cancel'){showModal('cancel');return;}
   if(a==='confirm-cancel'){if(dispatch({type:'CANCEL'}))closeModal();return;}
   if(a==='filter'){ui.filter=el.dataset.filter;render();return;}
   if(a==='buy-part'){dispatch({type:'BUY_PART',part:el.dataset.part});return;}
   if(a==='buy-tool'){dispatch({type:'BUY_TOOL'});return;}
   if(a==='end-day'){showModal('endday');return;}
-  if(a==='confirm-day'){if(dispatch({type:'END_DAY'})&&!state.gameOver)closeModal();return;}
-  if(a==='story'){showModal('story');return;}
-  if(a==='story-choice'){if(dispatch({type:'STORY_CHOICE',choice:el.dataset.choice}))closeModal();return;}
+  if(a==='confirm-day'){if(dispatch({type:'END_DAY'})&&!state.gameOver){closeModal();ui.waiting=[];if(state.story.awaitingChoice)beginVisit('story');else{ui.view='shop';nextVisitor();}}return;}
+  if(a==='story'){beginVisit('story');return;}
+  if(a==='story-choice'){if(dispatch({type:'STORY_CHOICE',choice:el.dataset.choice})){closeModal();leaveCounter('Спасибо за совет! В следующий раз приду за подходящей покрышкой.');}return;}
   if(a==='help'){showModal('help');return;}
   if(a==='new-game'){showModal('newgame');return;}
-  if(a==='confirm-new'){state=createState();ui.view='work';ui.wireLeft=null;persist();morning();closeModal();render();toast('Новая смена. На складе есть основные детали.');return;}
-  if(a==='restore-day'){try{const saved=JSON.parse(localStorage.getItem(CHECKPOINT));if(saved?.version!==1||saved.gameOver)throw new Error();state=saved;persist();closeModal();render();toast('День восстановлен с утреннего сохранения.');}catch{toast('Утреннее сохранение недоступно. Начните новую попытку.');}return;}
+  if(a==='confirm-new'){clearTimeout(visitTimer);state=createState();ui.view='shop';ui.visit=null;ui.waiting=[];ui.wireLeft=null;persist();morning();closeModal();nextVisitor();toast('Новая смена. Первый посетитель уже идёт к прилавку.');return;}
+  if(a==='restore-day'){try{const saved=JSON.parse(localStorage.getItem(CHECKPOINT));if(saved?.version!==1||saved.gameOver)throw new Error();state=saved;persist();closeModal();ui.waiting=[];ui.view='shop';if(state.story.awaitingChoice)beginVisit('story');else nextVisitor();toast('День восстановлен с утреннего сохранения.');}catch{toast('Утреннее сохранение недоступно. Начните новую попытку.');}return;}
 });
 document.addEventListener('input',e=>{
   if(!e.target.matches('#adjust-a,#adjust-b'))return;
@@ -151,4 +202,4 @@ document.addEventListener('input',e=>{
     document.querySelector('#adjust-result').textContent=Math.abs(v.a-t.a)<=6&&Math.abs(v.b-t.b)<=6?'Оба параметра в рабочей области':'Совместите оба указателя с зелёными областями';
   }catch(error){toast(error.message);}
 });
-render();persist();if(state.gameOver)showModal('bankrupt');else if(state.story.awaitingChoice)showModal('story');
+render();persist();if(state.gameOver)showModal('bankrupt');else if(state.story.awaitingChoice)beginVisit('story');else nextVisitor();

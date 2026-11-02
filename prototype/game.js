@@ -37,7 +37,7 @@ function makeOffer(s, i, type, extras = {}) {
   const seed = s.day * 7 + i;
   const clients = ['Ника','Борис','Тим','Лев','Ася','Марат'];
   const text = {
-    wheel:['Колесо теряет давление','Заметил повреждение шины после доставки. Нужна исправная покрышка.'],
+    wheel:['Колесо теряет давление','После доставки на шине появилось повреждение. Нужна исправная покрышка.'],
     brake:['Тормоз цепляет диск','На остановках тормоз работает неровно. Проверьте узел и настройте его.'],
     wiring:['Пропадает питание','После неровностей контакт исчезает. Проверьте проводку.'],
     shock:['Подвеска просела','С грузом задняя часть самоката проседает. Нужен исправный модуль.']
@@ -75,6 +75,12 @@ export function act(state, action) {
   let j = s.jobs.find(x => x.id === (action.jobId || s.selected));
   const live = () => { if (!j || j.status === 'closed') throw new Error('Выберите действующий заказ.'); return j; };
   switch(action.type) {
+    case 'DECLINE': {
+      const offer=s.offers.find(o=>o.id===action.id);
+      if(!offer)throw new Error('Посетитель уже ушёл или заказ принят.');
+      s.offers=s.offers.filter(o=>o.id!==offer.id);
+      log(s,`${offer.client}: от предложения отказались до принятия. Репутация не изменилась.`);break;
+    }
     case 'SELECT': live(); s.selected = j.id; break;
     case 'ACCEPT': {
       const o = s.offers.find(x => x.id === action.id);

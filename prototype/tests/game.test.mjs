@@ -112,3 +112,20 @@ test('two active jobs keep independent progress when switching',()=>{
   s=act(s,{type:'SELECT',jobId:first});
   assert.equal(s.selected,first); assert.equal(s.jobs[0].stage,'bolts'); assert.equal(s.jobs[1].stage,'diagnosis');
 });
+
+test('declining an offer is free and removes only that visitor',()=>{
+  const s=createState(),offer=s.offers[0];
+  const done=act(s,{type:'DECLINE',id:offer.id});
+  assert.equal(done.rep,s.rep); assert.equal(done.money,s.money); assert.equal(done.minutes,s.minutes);
+  assert.equal(done.jobs.length,0); assert.equal(done.offers.length,s.offers.length-1);
+  assert.ok(!done.offers.some(o=>o.id===offer.id));
+  assert.throws(()=>act(done,{type:'ACCEPT',id:offer.id}));
+  assert.throws(()=>act(done,{type:'DECLINE',id:offer.id}));
+});
+
+test('a visitor with an accepted order cannot be declined as a new offer',()=>{
+  let s=createState(); const id=s.offers[0].id;
+  s=act(s,{type:'ACCEPT',id});
+  assert.throws(()=>act(s,{type:'DECLINE',id}));
+  assert.equal(s.jobs[0].status,'active'); assert.equal(s.rep,50);
+});

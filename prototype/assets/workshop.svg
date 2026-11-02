@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 780" preserveAspectRatio="none">
+<defs><pattern id="bricks" width="144" height="72" patternUnits="userSpaceOnUse"><path d="M0 0h144M0 36h144M72 0v36M0 36v36M144 36v36" fill="none" stroke="#77887a" stroke-opacity=".13" stroke-width="2"/></pattern><pattern id="holes" width="24" height="24" patternUnits="userSpaceOnUse"><circle cx="12" cy="12" r="2.5" fill="#374a40" opacity=".45"/></pattern></defs>
+<path fill="#c6c7ae" d="M0 0h1440v780H0z"/><path fill="url(#bricks)" d="M0 0h1440v550H0z"/>
+<path fill="#9da58e" d="M0 550h1440v230H0z"/><path d="m0 650 1440-40M0 752l1440-62M240 550 80 780m510-230L560 780m290-230 80 230m210-230 180 230" stroke="#7d8e7a" stroke-width="3" opacity=".35"/>
+<path fill="#344a3e" d="M0 0h1440v48H0z"/><path fill="#8d9b82" d="M0 48h1440v17H0z"/>
+<path d="M0 96h1165v45h275" fill="none" stroke="#8d9881" stroke-width="13"/><path d="M430 49v45m430-45v45" stroke="#4a6150" stroke-width="8"/>
+<path d="M120 64v43m0 0-60 45h120z" fill="#3d5548" stroke="#3d5548" stroke-width="6"/><path fill="#e2d294" d="M67 153h106v10H67z"/>
+<path fill="#718e79" d="M58 193h293v286H58z"/><path fill="#345a53" d="M72 207h265v254H72z"/>
+<path d="M72 383 337 315v146H72z" fill="#607b68"/><path d="M90 461V338h40v123m20 0V284h50v177m18 0V325h48v136m18 0V270h44v191" fill="#7a927a" opacity=".7"/>
+<path d="M200 207v254M72 325h265" stroke="#a7b49a" stroke-width="9"/><path d="M48 475h315v15H48z" fill="#4d6654"/>
+<path d="M210 186 295 230m-79 42 54 27" stroke="#dbe0c4" stroke-width="9" opacity=".16"/>
+<rect x="406" y="202" width="433" height="251" rx="9" fill="#87977e" stroke="#5b715b" stroke-width="9"/><rect x="420" y="216" width="405" height="223" fill="url(#holes)"/>
+<g stroke="#334d40" stroke-width="10" stroke-linecap="round"><path d="m454 249 17 18v65m-17-83 2 24 21-1m43-23v77m-9-79h18m-9 80v22m58-86v65m-15-65h30m42-7v45m-12-45h24m-12 45v44m47-81v54m-9-54h18m-9 54v23"/></g>
+<path d="M456 334h28v48h-28zm54 18h21v36h-21zm52-24h32v57h-32zm55 19h24v37h-24z" fill="#c3a66c" stroke="#556d56" stroke-width="4"/>
+<circle cx="757" cy="342" r="55" fill="none" stroke="#3c5547" stroke-width="13"/><circle cx="757" cy="342" r="30" fill="none" stroke="#b6c2a5" stroke-width="7"/>
+<path d="M393 459h462v21H393z" fill="#4c6551"/><path d="M432 490h379v52H432z" fill="#6e8168"/><path d="M450 542h17v108h-17zm330 0h17v108h-17z" fill="#405a47"/>
+<path d="M18 537h315v18H18zM40 556h20v145H40zm252 0h20v145h-20z" fill="#52694f"/>
+<path d="M30 513h83v24H30z" fill="#b99c66"/><path d="M166 481h67v56h-67z" fill="#7c9783" stroke="#4b6954" stroke-width="5"/><path d="M184 494h31" stroke="#d2dcc0" stroke-width="5"/>
+<rect x="886" y="202" width="181" height="58" rx="4" fill="#3d5849"/><text x="976" y="239" text-anchor="middle" fill="#dfdfbf" font-family="Arial,sans-serif" font-size="20" letter-spacing="3">РЕМОНТ</text>
+<path fill="#4b6555" d="M1173 178h222v402h-222z"/><path fill="#24433d" d="M1185 191h197v389h-197z"/>
+<path fill="#688675" d="M1197 202h173v208h-173z"/><path fill="#a6b19a" d="m1206 405 161-68v68z"/><path d="M1284 202v205" stroke="#3c5a4b" stroke-width="8"/>
+<path d="M1200 425h169v143h-169z" fill="#566e59"/><path d="M1339 442v30" stroke="#d2c78f" stroke-width="7" stroke-linecap="round"/>
+<rect x="1214" y="302" width="137" height="41" rx="4" fill="#dfc38d" transform="rotate(-5 1280 323)"/><text x="1282" y="329" text-anchor="middle" fill="#3d5945" font-family="Arial,sans-serif" font-size="18" letter-spacing="2">ОТКРЫТО</text>
+<path d="M1160 579h248v21h-248z" fill="#4c6452"/><path d="M1156 602h263v17h-263z" fill="#829278"/>
+<path d="M1106 535v79m-17-50 17 12 17-12" fill="none" stroke="#47705a" stroke-width="8"/><path d="m1080 609 8 61h40l8-61z" fill="#b8875b"/>
+<rect x="35" y="704" width="158" height="53" rx="6" fill="#6d866d"/><path d="M52 717h55m-55 14h91" stroke="#9cae8a" stroke-width="5"/>
+</svg>
