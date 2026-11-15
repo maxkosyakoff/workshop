@@ -131,7 +131,7 @@ test('a visitor with an accepted order cannot be declined as a new offer',()=>{
   assert.equal(s.jobs[0].status,'active'); assert.equal(s.rep,50);
 });
 
-test('all sixty repair scenarios can be completed with compatible parts and reused interactions',()=>{
+test('all fifty repair scenarios can be completed with compatible parts and reused interactions',()=>{
   let count=0;
   for(const [vehicleId,faults] of Object.entries(FAULTS))for(const fault of faults){
     let s=createState();s.xp=42;s.torque=true;
@@ -155,23 +155,23 @@ test('all sixty repair scenarios can be completed with compatible parts and reus
     assert.equal(s.jobs[0].vehicleId,vehicleId);assert.equal(s.jobs[0].finalQuality,92);
     count++;
   }
-  assert.equal(count,60);assert.equal(Object.keys(VEHICLES).length,6);
+  assert.equal(count,50);assert.deepEqual(Object.keys(VEHICLES),['ES','BE','EB','MP','EM']);
 });
 
 test('changing direction preserves active orders and never recreates processed offers',()=>{
-  let s=act(createState(),{type:'SET_VEHICLE',vehicleId:'BI'});
-  const fault=FAULTS.BI[0];s=act(s,{type:'REQUEST_FAULT',faultId:fault.id});const id=faultOfferId(s,fault);
+  let s=act(createState(),{type:'SET_VEHICLE',vehicleId:'BE'});
+  const fault=FAULTS.BE[0];s=act(s,{type:'REQUEST_FAULT',faultId:fault.id});const id=faultOfferId(s,fault);
   s=act(s,{type:'ACCEPT',id});s=act(s,{type:'DIAG',node:'wheel',tool:'visual'});
-  s=act(s,{type:'SET_VEHICLE',vehicleId:'EM'});s=act(s,{type:'SET_VEHICLE',vehicleId:'BI'});
+  s=act(s,{type:'SET_VEHICLE',vehicleId:'EM'});s=act(s,{type:'SET_VEHICLE',vehicleId:'BE'});
   assert.equal(s.jobs[0].stage,'bolts');assert.ok(!s.offers.some(o=>o.id===id));
   assert.throws(()=>act(s,{type:'REQUEST_FAULT',faultId:fault.id}));
   const declined=s.offers[0].id;s=act(s,{type:'DECLINE',id:declined});
-  s=act(s,{type:'SET_VEHICLE',vehicleId:'EM'});s=act(s,{type:'SET_VEHICLE',vehicleId:'BI'});
+  s=act(s,{type:'SET_VEHICLE',vehicleId:'EM'});s=act(s,{type:'SET_VEHICLE',vehicleId:'BE'});
   assert.ok(!s.offers.some(o=>o.id===declined));
 });
 
-test('a bicycle has no electric traction nodes and model-specific replacement is enforced',()=>{
-  let s=act(createState(),{type:'SET_VEHICLE',vehicleId:'BI'});
+test('the petrol moped has no traction battery and requires compatible parts',()=>{
+  let s=act(createState(),{type:'SET_VEHICLE',vehicleId:'MP'});
   s=act(s,{type:'ACCEPT',id:s.offers[0].id});
   assert.throws(()=>act(s,{type:'DIAG',node:'battery',tool:'meter'}));
   s=act(s,{type:'DIAG',node:'wheel',tool:'visual'});
@@ -180,8 +180,8 @@ test('a bicycle has no electric traction nodes and model-specific replacement is
   assert.equal(s.inventory.tire_road,1);assert.equal(s.jobs[0].part,null);
 });
 
-test('spoke failure requires a wheel assembly rather than only a tire',()=>{
-  let s=act(createState(),{type:'SET_VEHICLE',vehicleId:'BI'});const f=FAULTS.BI[4];
+test('damage to a cargo wheel requires a wheel assembly rather than only a tire',()=>{
+  let s=act(createState(),{type:'SET_VEHICLE',vehicleId:'EB'});const f=FAULTS.EB[0];
   s=act(s,{type:'REQUEST_FAULT',faultId:f.id});s=act(s,{type:'ACCEPT',id:faultOfferId(s,f)});
   assert.equal(compatible(s.jobs[0],'bike_tire'),false);assert.equal(compatible(s.jobs[0],'bike_wheel'),true);
 });
@@ -191,4 +191,24 @@ test('legacy saves preserve balances and receive new stock with zero quantities'
   const s=hydrateState(old);assert.equal(s.vehicleId,'ES');assert.equal(s.money,old.money);assert.equal(s.inventory.bike_battery,0);
   let next=act(s,{type:'BUY_PART',part:'bike_battery'});next=act(next,{type:'END_DAY'});
   assert.equal(next.inventory.bike_battery,1);assert.ok(Number.isFinite(next.money));
+});
+
+test('removing a vehicle migrates open orders and returns fitted stock only once',()=>{
+  const old=act(createState(),{type:'ACCEPT',id:createState().offers[0].id});
+  const current=old.jobs[0];
+  const previous={id:'d1-BI-BI-R01',vehicleId:'BI',part:'bike_tire'};
+  old.jobs.push({...previous,status:'ready'},{...previous,id:'closed-bike-job',status:'closed'});
+  old.offers=[previous];
+  old.selected=previous.id;
+  old.vehicleId='BI';
+  const restored=hydrateState(old);
+  assert.equal(restored.vehicleId,'ES');
+  assert.deepEqual(restored.jobs,[current]);
+  assert.equal(restored.selected,current.id);
+  assert.ok(restored.offers.length && restored.offers.every(offer=>offer.vehicleId==='ES'));
+  assert.equal(restored.inventory.bike_tire,old.inventory.bike_tire+1);
+  assert.equal(hydrateState(restored).inventory.bike_tire,restored.inventory.bike_tire);
+  assert.equal(restored.money,old.money);
+  assert.equal(restored.rep,old.rep);
+  assert.throws(()=>act(restored,{type:'SET_VEHICLE',vehicleId:'BI'}));
 });

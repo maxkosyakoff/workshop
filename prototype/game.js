@@ -11,11 +11,11 @@ export const PARTS = {
   connector_used: { name:'Восстановленный разъём', category:'wiring', price:20, quality:78, effect:{}, label:'Для обычных заказов', art:'connector', used:true },
   shock: { name:'Городской амортизатор', category:'shock', price:130, quality:92, effect:{comfort:1, load:0}, label:'Комфорт +1', art:'shock' },
   shock_cargo: { name:'Грузовой амортизатор', category:'shock', price:155, quality:92, effect:{comfort:-1, load:2}, label:'Нагрузка +2 · комфорт −1', art:'shock' },
-  bike_tire:part('Велосипедная камера и покрышка','wheel',45,'wheel',['BI','BE','EB']),
-  bike_wheel:part('Велосипедное колесо с втулкой','wheel',95,'wheel',['BI','BE','EB']),
-  bike_brake:part('Тормозной комплект велосипеда','brake',50,'brake',['BI','BE','EB']),
-  bike_drive:part('Ремкомплект велосипедной трансмиссии','drive',65,'drive',['BI','BE','EB']),
-  bike_steering:part('Рулевой комплект велосипеда','steering',45,'steering',['BI','BE','EB']),
+  bike_tire:part('Велосипедная камера и покрышка','wheel',45,'wheel',['BE','EB']),
+  bike_wheel:part('Велосипедное колесо с втулкой','wheel',95,'wheel',['BE','EB']),
+  bike_brake:part('Тормозной комплект велосипеда','brake',50,'brake',['BE','EB']),
+  bike_drive:part('Ремкомплект велосипедной трансмиссии','drive',65,'drive',['BE','EB']),
+  bike_steering:part('Рулевой комплект велосипеда','steering',45,'steering',['BE','EB']),
   bike_battery:part('Батарейный модуль электровелосипеда','battery',150,'battery',['BE','EB']),
   bike_motor:part('Моторный модуль электровелосипеда','motor',190,'motor',['BE','EB']),
   bike_control:part('Контроллер электровелосипеда','control',100,'control',['BE','EB']),
@@ -56,7 +56,22 @@ export function compatible(job,partId){
   return fits.includes(job.vehicleId||'ES')&&(!job.parts||job.parts.includes(partId));
 }
 export function hydrateState(saved){
-  return {...saved,vehicleId:VEHICLES[saved.vehicleId]?saved.vehicleId:'ES',declinedOffers:saved.declinedOffers||[],inventory:{...Object.fromEntries(Object.keys(PARTS).map(id=>[id,0])),...saved.inventory}};
+  const supported = id => Object.hasOwn(VEHICLES, id || 'ES');
+  const inventory = {...Object.fromEntries(Object.keys(PARTS).map(id=>[id,0])), ...saved.inventory};
+  const jobs = [];
+  for (const job of saved.jobs) {
+    if (supported(job.vehicleId)) jobs.push(job);
+    else if (job.status !== 'closed' && Object.hasOwn(PARTS, job.part)) inventory[job.part]++;
+  }
+  const state = {
+    ...saved, jobs, inventory,
+    vehicleId: supported(saved.vehicleId) ? saved.vehicleId || 'ES' : 'ES',
+    declinedOffers: saved.declinedOffers || [],
+    offers: saved.offers.filter(offer => supported(offer.vehicleId))
+  };
+  if (!supported(saved.vehicleId)) state.offers = offersForDay(state);
+  if (saved.selected && !selectedJob(state)) state.selected = activeJobs(state)[0]?.id || null;
+  return state;
 }
 export function faultOfferId(s,fault){return `d${s.day}-${s.vehicleId||'ES'}-${fault.id}`;}
 function catalogOffer(s,fault,index){
