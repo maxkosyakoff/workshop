@@ -25,6 +25,8 @@ jobs:
         run: node --test prototype/tests/game.test.mjs
       - name: Build static demo
         run: node prototype/scripts/build-demo.mjs
+      - name: Include Unity Web demo
+        run: cp -R unity dist/unity
       - name: Upload static site
         uses: actions/upload-pages-artifact@v4
         with:
