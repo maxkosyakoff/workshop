@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en-us">
+<html lang="ru">
   <head>
     <meta charset="utf-8">
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-    <title>Unity Web Player | Workshop - Street Arrival</title>
+    <title>Workshop — подъезд курьеров</title>
     <link rel="shortcut icon" href="TemplateData/favicon.ico">
     <link rel="stylesheet" href="TemplateData/style.css">
   </head>
@@ -24,7 +24,7 @@
       <div id="unity-footer">
         <div id="unity-logo-title-footer"></div>
         <div id="unity-fullscreen-button"></div>
-        <div id="unity-build-title">Workshop - Street Arrival</div>
+        <div id="unity-build-title">R — следующий курьер · 1 — день · 2 — ночь · 3 — дождь</div>
       </div>
     </div>
     <script>
@@ -57,12 +57,12 @@
       }
 
       var buildUrl = "Build";
-      var loaderUrl = buildUrl + "/Web.loader.js";
+      var loaderUrl = buildUrl + "/PixelWeb.loader.js";
       var config = {
         arguments: [],
-        dataUrl: buildUrl + "/Web.data",
-        frameworkUrl: buildUrl + "/Web.framework.js",
-        codeUrl: buildUrl + "/Web.wasm",
+        dataUrl: buildUrl + "/PixelWeb.data.unityweb",
+        frameworkUrl: buildUrl + "/PixelWeb.framework.js.unityweb",
+        codeUrl: buildUrl + "/PixelWeb.wasm.unityweb",
         streamingAssetsUrl: "StreamingAssets",
 
         // If you have a custom web site structure, or want to place multiple Unity build instances on the same page,
